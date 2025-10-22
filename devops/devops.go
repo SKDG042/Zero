@@ -39,7 +39,6 @@ func Init(ctx context.Context) error {
 // GetCallbackHandlers 获取所有的链路追踪handler
 // 同时初始化除了EinoDev外的handler
 func GetCallbackHandlers(ctx context.Context) ([]callbacks.Handler, error) {
-	var handlers []callbacks.Handler
 
 	if os.Getenv("COZELOOP_ENABLED") == "true" {
 		// 使用cozeloopOnce.Do 防止重复床啊今client导致coze报错
@@ -47,20 +46,24 @@ func GetCallbackHandlers(ctx context.Context) ([]callbacks.Handler, error) {
 			client, err := cozeloop.NewClient()
 			if err != nil {
 				log.Printf("cozeloop链路追踪初始化失败：%v", err)
-			} else {
-				cozeloopClient = client
-				log.Println("cozeloop成功启动")
+				return
 			}
+
+			// 注册为默认client, 防止重复创建client导致warning
+			cozeloop.SetDefaultClient(client)
+
+			cozeloopClient = client
+			log.Println("cozeloop 成功启动")
 		})
 
-		// 只在客户端成功创建时添加 Handler
+		var handlers []callbacks.Handler
 		if cozeloopClient != nil {
 			handler := ccb.NewLoopHandler(cozeloopClient)
 			handlers = append(handlers, handler)
 		}
+		return handlers, nil
 	}
-
-	return handlers, nil
+	return nil, nil
 }
 
 func Shutdown(ctx context.Context) {

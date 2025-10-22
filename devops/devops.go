@@ -41,7 +41,7 @@ func Init(ctx context.Context) error {
 func GetCallbackHandlers(ctx context.Context) ([]callbacks.Handler, error) {
 
 	if os.Getenv("COZELOOP_ENABLED") == "true" {
-		// 使用cozeloopOnce.Do 防止重复床啊今client导致coze报错
+		// 使用cozeloopOnce.Do 防止重复创建client导致coze报错
 		cozeloopOnce.Do(func() {
 			client, err := cozeloop.NewClient()
 			if err != nil {
@@ -67,6 +67,8 @@ func GetCallbackHandlers(ctx context.Context) ([]callbacks.Handler, error) {
 }
 
 func Shutdown(ctx context.Context) {
-	cozeloopClient.Close(ctx)
-	log.Println("cozeloop成功关闭")
+	if cozeloopClient != nil {
+		cozeloopClient.Close(ctx)
+		log.Println("cozeloop成功关闭")
+	}
 }

@@ -29,13 +29,14 @@ func main() {
 		defer devops.Shutdown(ctx)
 	}
 
-	// 初始化 callback handerls
+	// 初始化 callback handlers
 	handlers, err := devops.GetCallbackHandlers(ctx)
 	if err != nil {
 		log.Printf("初始化callback handlers失败：%v", err)
-	} else {
-		llm.InitHandlers(handlers)
 	}
+
+	// 注册全局handlers
+	llm.InitHandlers(handlers)
 
 	// 初始化LLM client
 	client, err := llm.NewOpenaiClient(ctx, "openai")

@@ -20,7 +20,6 @@ var InitHandlersOnce sync.Once
 type Client struct {
 	provider string
 	model    *openai.ChatModel
-	handlers []callbacks.Handler // 有devops包传入链路追踪
 }
 
 func InitHandlers(handlers []callbacks.Handler) {

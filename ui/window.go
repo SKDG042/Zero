@@ -159,8 +159,8 @@ func NewMainWindow(client *llm.Client) *MainWindow {
 }
 
 // Run 启动并展示Gui
-func (mainWindow *MainWindow) Run() {
-	mainWindow.Window.ShowAndRun()
+func (mw *MainWindow) Run() {
+	mw.Window.ShowAndRun()
 }
 
 // onSend 发送消息交给AI处理

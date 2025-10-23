@@ -16,9 +16,10 @@ import (
 
 var cozeloopClient cozeloop.Client
 var cozeloopOnce sync.Once // 添加sync.Once来避免重复创建client
+var InitHandlersOnce sync.Once
 
-// Init 用于初始化 EinoDev的链路追踪
-func Init(ctx context.Context) error {
+// InitEinoDev 用于初始化 EinoDev的链路追踪
+func InitEinoDev(ctx context.Context) error {
 	// 首先设置 EinoDev 可视化操作相关的链路追踪
 	if os.Getenv("EINO_DEVOPS_ENABLED") == "true" {
 		port := os.Getenv("EINO_DEVOPS_PORT")
@@ -37,7 +38,6 @@ func Init(ctx context.Context) error {
 }
 
 // GetCallbackHandlers 获取所有的链路追踪handler
-// 同时初始化除了EinoDev外的handler
 func GetCallbackHandlers(ctx context.Context) ([]callbacks.Handler, error) {
 
 	if os.Getenv("COZELOOP_ENABLED") == "true" {
@@ -66,6 +66,18 @@ func GetCallbackHandlers(ctx context.Context) ([]callbacks.Handler, error) {
 	return nil, nil
 }
 
+// InitHandlers 初始化其余handlers
+func InitHandlers(handlers []callbacks.Handler) {
+	// 如果创建的Client还有handler, 则自动将其添加到全局
+	InitHandlersOnce.Do(func() {
+		if len(handlers) > 0 {
+			callbacks.AppendGlobalHandlers(handlers...)
+		}
+	})
+
+}
+
+// Shutdown 关闭cozeloop链路追踪
 func Shutdown(ctx context.Context) {
 	if cozeloopClient != nil {
 		cozeloopClient.Close(ctx)

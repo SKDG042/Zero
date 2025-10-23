@@ -6,30 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sync"
 	"time"
 
 	openai "github.com/cloudwego/eino-ext/components/model/openai"
-	"github.com/cloudwego/eino/callbacks"
 	"github.com/cloudwego/eino/schema"
 )
-
-var InitHandlersOnce sync.Once
 
 // Client LLM调用的客户端
 type Client struct {
 	provider string
 	model    *openai.ChatModel
-}
-
-func InitHandlers(handlers []callbacks.Handler) {
-	// 如果创建的Client还有handler, 则自动将其添加到全局
-	InitHandlersOnce.Do(func() {
-		if len(handlers) > 0 {
-			callbacks.AppendGlobalHandlers(handlers...)
-		}
-	})
-
 }
 
 // NewOpenaiClient 创建Openai接口格式的客户端

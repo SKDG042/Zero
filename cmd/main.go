@@ -23,7 +23,7 @@ func main() {
 	defer cancel()
 
 	// 初始化EinoDev
-	if err := devops.Init(ctx); err != nil {
+	if err := devops.InitEinoDev(ctx); err != nil {
 		log.Printf("初始化EinoDev失败：%v", err)
 	} else {
 		defer devops.Shutdown(ctx)
@@ -36,7 +36,7 @@ func main() {
 	}
 
 	// 注册全局handlers
-	llm.InitHandlers(handlers)
+	devops.InitHandlers(handlers)
 
 	// 初始化LLM client
 	client, err := llm.NewOpenaiClient(ctx, "openai")
@@ -46,6 +46,7 @@ func main() {
 
 	log.Println("LLM client和所有链路追踪初始化完毕")
 
+	// 创建GUI
 	mainWindow := ui.NewMainWindow(client)
 
 	// 优雅退出
@@ -58,5 +59,6 @@ func main() {
 		mainWindow.App.Quit()
 	}()
 
+	// 启动GUI
 	mainWindow.Run()
 }

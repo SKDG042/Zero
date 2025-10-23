@@ -28,6 +28,7 @@ type MainWindow struct {
 	sendButton *widget.Button
 }
 
+// NewMainWindow 创建GUI
 func NewMainWindow(client *llm.Client) *MainWindow {
 
 	// 用fyne创建一个新的窗口应用
@@ -42,29 +43,6 @@ func NewMainWindow(client *llm.Client) *MainWindow {
 		messages:  []string{"你好，这里是_042喵，需要我来做些什么吗？"},
 	}
 
-	// 创建消息列表显示历史对话
-	mainWindow.messageBox = widget.NewList(
-		// 列表长度
-		func() int {
-			return len(mainWindow.messages)
-		},
-		func() fyne.CanvasObject {
-			return widget.NewLabel("")
-		},
-		func(id widget.ListItemID, object fyne.CanvasObject) {
-			object.(*widget.Label).SetText(mainWindow.messages[id]) // 消息内容
-			object.(*widget.Label).Wrapping = fyne.TextWrapWord     //自动换行
-		},
-	)
-
-	// 创建输入框
-	mainWindow.inputEntry = widget.NewMultiLineEntry()
-	mainWindow.inputEntry.SetPlaceHolder("请在此输入你的问题")
-	mainWindow.inputEntry.SetMinRowsVisible(3)
-
-	// 创建发送按钮
-	mainWindow.sendButton = widget.NewButton("发送", mainWindow.onSend)
-
 	// 绑定icon
 	icon, err := fyne.LoadResourceFromPath("assets/icon.svg")
 	if err != nil {
@@ -73,7 +51,7 @@ func NewMainWindow(client *llm.Client) *MainWindow {
 	zeroWindow.SetIcon(icon)
 
 	// 创建左上角的那种菜单栏
-	fileMenu := fyne.NewMenu("打开文件",
+	fileMenu := fyne.NewMenu("文件",
 		fyne.NewMenuItem("新对话", func() {
 			mainWindow.newConversation()
 		}),
@@ -99,7 +77,7 @@ func NewMainWindow(client *llm.Client) *MainWindow {
 		}),
 	)
 
-	// 在创建一个设置相关菜单
+	// 再创建一个设置相关菜单
 	settingsMenu := fyne.NewMenu("设置",
 		fyne.NewMenuItem("API", func() {
 			content := widget.NewLabel("这里目前什么也没有")
@@ -116,13 +94,6 @@ func NewMainWindow(client *llm.Client) *MainWindow {
 		}),
 	)
 
-	// 把两个菜单栏全部加到窗口上面
-	mainMenu := fyne.NewMainMenu(fileMenu, settingsMenu)
-	zeroWindow.SetMainMenu(mainMenu)
-
-	// 输入框应该在发送左边
-	inputBox := container.NewBorder(nil, nil, nil, mainWindow.sendButton, mainWindow.inputEntry)
-
 	// // 完善窗口菜单栏下的内容
 	// // 创建欢迎文本
 	// welcomeText := canvas.NewText("欢迎使用 Zero", nil) // nil 表示使用默认颜色
@@ -134,7 +105,37 @@ func NewMainWindow(client *llm.Client) *MainWindow {
 
 	// centerContent := container.NewCenter(welcomeText)
 
-	// 超级拼装(
+	// 创建消息列表显示历史对话
+	mainWindow.messageBox = widget.NewList(
+		// 列表长度
+		func() int {
+			return len(mainWindow.messages)
+		},
+		func() fyne.CanvasObject {
+			return widget.NewLabel("")
+		},
+		func(id widget.ListItemID, object fyne.CanvasObject) {
+			object.(*widget.Label).SetText(mainWindow.messages[id]) // 消息内容
+			object.(*widget.Label).Wrapping = fyne.TextWrapWord     //自动换行
+		},
+	)
+
+	// 创建输入框
+	mainWindow.inputEntry = widget.NewMultiLineEntry()
+	mainWindow.inputEntry.SetPlaceHolder("请在此输入你的问题")
+	mainWindow.inputEntry.SetMinRowsVisible(3)
+	// 创建发送按钮
+	mainWindow.sendButton = widget.NewButton("发送", mainWindow.onSend)
+
+	// 输入框应该在发送左边
+	inputBox := container.NewBorder(nil, nil, nil, mainWindow.sendButton, mainWindow.inputEntry)
+
+	// 开始拼装环节：
+
+	// 把两个菜单栏全部加到窗口上面
+	mainMenu := fyne.NewMainMenu(fileMenu, settingsMenu)
+	zeroWindow.SetMainMenu(mainMenu)
+
 	// 把菜单栏，状态栏还有窗口的内容合并
 	content := container.NewBorder(
 		nil, // 菜单栏自动绑定置顶

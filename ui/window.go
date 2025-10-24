@@ -115,14 +115,14 @@ func NewMainWindow(client *llm.Client) *MainWindow {
 	mainWindow.scrollContainer = container.NewScroll(mainWindow.messageContainer)
 
 	// 添加欢迎消息
-	welcomeMsg := widget.NewRichTextFromMarkdown("**Zero**: 你好，这里是_042喵，需要我来做些什么吗？")
+	welcomeMsg := widget.NewRichTextFromMarkdown("**● Zero**: 你好，这里是_042喵，需要我来做些什么吗？")
 	welcomeMsg.Wrapping = fyne.TextWrapWord
 	mainWindow.messageContainer.Add(welcomeMsg)
 
 	// 创建输入框
 	mainWindow.inputEntry = widget.NewMultiLineEntry()
 	mainWindow.inputEntry.SetPlaceHolder("请在此输入你的问题")
-	mainWindow.inputEntry.SetMinRowsVisible(3)
+	mainWindow.inputEntry.SetMinRowsVisible(1)
 	// 创建发送按钮
 	mainWindow.sendButton = widget.NewButton("发送", mainWindow.onSend)
 
@@ -186,7 +186,7 @@ func (mw *MainWindow) onSend() {
 		}
 
 		// 添加用户消息到容器
-		userMsg := widget.NewRichTextFromMarkdown(fmt.Sprintf("**你**: %s", userInput))
+		userMsg := widget.NewRichTextFromMarkdown(fmt.Sprintf("**> 你**: %s", userInput))
 		userMsg.Wrapping = fyne.TextWrapWord
 		mw.messageContainer.Add(userMsg)
 		mw.scrollContainer.ScrollToBottom()
@@ -206,7 +206,7 @@ func (mw *MainWindow) onSend() {
 		mw.statusBar.SetText("等待 Zero 思考结束")
 
 		// 首先用aiMsg占位，等llm返回结果后再更新
-		aiMsg := widget.NewRichTextFromMarkdown("**Zero**: 正在思考...")
+		aiMsg := widget.NewRichTextFromMarkdown("**● Zero**: 正在思考...")
 		aiMsg.Wrapping = fyne.TextWrapWord
 		mw.messageContainer.Add(aiMsg)
 		mw.scrollContainer.ScrollToBottom()
@@ -227,7 +227,7 @@ func (mw *MainWindow) onSend() {
 
 				// GUI框架强制要求ui操作需要用 .Do调度到主线程进行更新
 				fyne.Do(func() {
-					aiMsg.ParseMarkdown(fmt.Sprintf("**Zero💗**: %s", fullResponse.String()))
+					aiMsg.ParseMarkdown(fmt.Sprintf("**● Zero💗**: %s", fullResponse.String()))
 					mw.scrollContainer.ScrollToBottom()
 				})
 				return nil
@@ -236,11 +236,11 @@ func (mw *MainWindow) onSend() {
 				if err != nil {
 					if errors.Is(err, context.Canceled) {
 						// 取消时保留已生成的内容
-						aiMsg.ParseMarkdown(fmt.Sprintf("**Zero**: %s\n\n_(已取消)_", fullResponse.String()))
+						aiMsg.ParseMarkdown(fmt.Sprintf("**● Zero**: %s\n\n_(已取消)_", fullResponse.String()))
 						mw.statusBar.SetText("调用AI已取消")
 					} else {
 						// 错误时保留已生成的内容并显示错误
-						aiMsg.ParseMarkdown(fmt.Sprintf("**Zero**: %s\n\n❌ **错误**: %v", fullResponse.String(), err))
+						aiMsg.ParseMarkdown(fmt.Sprintf("**● Zero**: %s\n\n❌ **错误**: %v", fullResponse.String(), err))
 						mw.statusBar.SetText("调用AI失败")
 					}
 				} else {
@@ -265,7 +265,7 @@ func (mw *MainWindow) newConversation() {
 	mw.messageContainer.Objects = []fyne.CanvasObject{}
 
 	// 添加欢迎消息
-	welcomeMsg := widget.NewRichTextFromMarkdown("**Zero**: 新的对话开始喵~ 主人有什么问题要问 Zero吗~")
+	welcomeMsg := widget.NewRichTextFromMarkdown("**● Zero**: 新的对话开始喵~ 主人有什么问题要问 Zero吗~")
 	welcomeMsg.Wrapping = fyne.TextWrapWord
 	mw.messageContainer.Add(welcomeMsg)
 

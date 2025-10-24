@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -50,4 +51,33 @@ func (c *Client) Generate(ctx context.Context, message []*schema.Message) (*sche
 	}
 
 	return response, nil
+}
+
+// GenerateStream 调用流式输出
+func (c *Client) GenerateStream(ctx context.Context, message []*schema.Message, onChunk func(string) error) error {
+	streamReader, err := c.model.Stream(ctx, message)
+	if err != nil {
+		return fmt.Errorf("流式生成消息失败: %w", err)
+	}
+	defer streamReader.Close()
+
+	// 循环接收消息
+	for {
+		chunk, err := streamReader.Recv()
+		// 遇到EOF截止信号则退出循环
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return fmt.Errorf("接收消息失败：%w", err)
+		}
+
+		// 将消息交给回调函数
+		if err := onChunk(chunk.Content); err != nil {
+			return fmt.Errorf("处理消息块失败：%w", err)
+		}
+	}
+
+	return nil
 }

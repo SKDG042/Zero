@@ -3,8 +3,11 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"strings"
+	"sync"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -26,6 +29,9 @@ type MainWindow struct {
 	messageBox *widget.List // 消息列表
 	inputEntry *widget.Entry
 	sendButton *widget.Button
+	isSending  bool
+	mu         sync.Mutex
+	cancelFunc context.CancelFunc
 }
 
 // NewMainWindow 创建GUI
@@ -38,7 +44,7 @@ func NewMainWindow(client *llm.Client) *MainWindow {
 	mainWindow := &MainWindow{
 		App:       zeroApp,
 		Window:    zeroWindow,
-		statusBar: widget.NewLabel("Zero: Waiting for u..."), // 状态栏
+		statusBar: widget.NewLabel("Zero: 你好 喵~"), // 状态栏
 		client:    client,
 		messages:  []string{"你好，这里是_042喵，需要我来做些什么吗？"},
 	}
@@ -166,51 +172,94 @@ func (mw *MainWindow) Run() {
 
 // onSend 发送消息交给AI处理
 func (mw *MainWindow) onSend() {
-	userInput := mw.inputEntry.Text
+	mw.mu.Lock()
+	isSending := mw.isSending
+	mw.mu.Unlock()
 
-	if len(userInput) == 0 {
-		return
+	if isSending {
+		mw.mu.Lock()
+		cancelFunc := mw.cancelFunc
+		mw.mu.Unlock()
+
+		if cancelFunc != nil {
+			cancelFunc()
+			mw.statusBar.SetText("正在取消...")
+		}
+	} else {
+		userInput := mw.inputEntry.Text
+
+		if len(userInput) == 0 {
+			return
+		}
+
+		// 添加对话到消息列表然后刷新
+		mw.messages = append(mw.messages, fmt.Sprintf("你：%s", userInput))
+		mw.messageBox.Refresh()
+
+		// 然后清空输入栏
+		mw.inputEntry.SetText("")
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		// 加锁设置isSending状态为true
+		mw.mu.Lock()
+		mw.isSending = true
+		mw.cancelFunc = cancel
+		mw.sendButton.SetText("停止")
+		mw.mu.Unlock()
+
+		mw.statusBar.SetText("等待 Zero 思考结束")
+
+		aiMsgIdx := len(mw.messages)
+		mw.messages = append(mw.messages, "Zero: 正在思考...")
+		mw.messageBox.Refresh()
+		mw.messageBox.ScrollToBottom()
+
+		// 调用 llm
+		go func() {
+			mw.mu.Lock()
+			mw.cancelFunc = cancel
+			mw.mu.Unlock()
+
+			var fullResponse strings.Builder
+
+			err := mw.client.GenerateStream(ctx, []*schema.Message{
+				schema.SystemMessage("你是一个善于解决别人提出的任何问题，并给出精准答案的猫娘助手Zero, 喜欢自称，带有猫娘口癖"),
+				schema.UserMessage(userInput),
+			}, func(chunk string) error {
+				fullResponse.WriteString(chunk)
+
+				// GUI框架强制要求ui操作需要用 .Do调度到主线程进行更新
+				fyne.Do(func() {
+					mw.messages[aiMsgIdx] = fmt.Sprintf("Zero💗：%s", fullResponse.String())
+					mw.messageBox.Refresh()
+					mw.messageBox.ScrollToBottom()
+				})
+				return nil
+			})
+			fyne.Do(func() {
+				if err != nil {
+					if errors.Is(err, context.Canceled) {
+						mw.statusBar.SetText(fmt.Sprintf(mw.messages[aiMsgIdx], " \nZero 被取消了喵~"))
+						mw.statusBar.SetText("调用AI已取消")
+					} else {
+						mw.messages[aiMsgIdx] = fmt.Sprintf(mw.messages[aiMsgIdx], " \nZero出错啦：%v", err)
+						mw.statusBar.SetText("调用AI失败")
+					}
+				} else {
+					mw.statusBar.SetText("Zero 思考完毕喵~")
+				}
+				mw.messageBox.Refresh()
+
+				// 将按钮改回为发送
+				mw.mu.Lock()
+				mw.isSending = false
+				mw.cancelFunc = nil
+				mw.sendButton.SetText("发送")
+				mw.mu.Unlock()
+			})
+		}()
 	}
-
-	// 添加对话到消息列表然后刷新
-	mw.messages = append(mw.messages, fmt.Sprintf("你：%s", userInput))
-	mw.messageBox.Refresh()
-
-	// 然后清空输入栏
-	mw.inputEntry.SetText("")
-
-	// 临时禁用(后续改为停止/中断发送)
-	mw.sendButton.Disable()
-	mw.statusBar.SetText("等待 Zero 思考结束")
-
-	aiMsgIdx := len(mw.messages)
-	mw.messages = append(mw.messages, "Zero: 正在思考...")
-	mw.messageBox.Refresh()
-	mw.messageBox.ScrollToBottom()
-
-	// 调用 llm
-	go func() {
-		ctx := context.Background()
-		resp, err := mw.client.Generate(ctx, []*schema.Message{
-			schema.SystemMessage("你是一个善于解决别人提出的任何问题，并给出精准答案的猫娘助手Zero, 喜欢自称，带有猫娘口癖"),
-			schema.UserMessage(userInput),
-		})
-
-		// GUI框架强制要求ui操作需要用.Do调度到主线程进行更新
-		fyne.Do(func() {
-			if err != nil {
-				mw.messages[aiMsgIdx] = fmt.Sprintf("调用AI失败：%v", err)
-				mw.statusBar.SetText("状态：调用AI失败")
-			} else {
-				mw.messages[aiMsgIdx] = fmt.Sprintf("Zero💗: %s", resp.Content)
-				mw.statusBar.SetText("完美作答！")
-			}
-
-			mw.messageBox.Refresh()
-			mw.messageBox.ScrollToBottom()
-			mw.sendButton.Enable()
-		})
-	}()
 }
 
 // newConversation 开启新对话

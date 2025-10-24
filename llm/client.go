@@ -25,7 +25,7 @@ func NewOpenaiClient(ctx context.Context, provider string) (*Client, error) {
 		BaseURL: os.Getenv("OPENAI_BASE_URL"),
 		APIKey:  os.Getenv("OPENAI_API_KEY"),
 		Model:   os.Getenv("OPENAI_MODEL"),
-		Timeout: 30 * time.Second,
+		Timeout: 600 * time.Second,
 	})
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {

@@ -21,17 +21,17 @@ import (
 
 // MainWindow 主界面
 type MainWindow struct {
-	App        fyne.App
-	Window     fyne.Window
-	statusBar  *widget.Label // 状态栏
-	client     *llm.Client
-	messages   []string     // 历史所有消息
-	messageBox *widget.List // 消息列表
-	inputEntry *widget.Entry
-	sendButton *widget.Button
-	isSending  bool
-	mu         sync.Mutex
-	cancelFunc context.CancelFunc
+	App              fyne.App
+	Window           fyne.Window
+	statusBar        *widget.Label // 状态栏
+	client           *llm.Client
+	messageContainer *fyne.Container // 存放消息的容器
+	scrollContainer  *container.Scroll
+	inputEntry       *widget.Entry
+	sendButton       *widget.Button
+	isSending        bool
+	mu               sync.Mutex
+	cancelFunc       context.CancelFunc
 }
 
 // NewMainWindow 创建GUI
@@ -44,9 +44,8 @@ func NewMainWindow(client *llm.Client) *MainWindow {
 	mainWindow := &MainWindow{
 		App:       zeroApp,
 		Window:    zeroWindow,
-		statusBar: widget.NewLabel("Zero: 你好 喵~"), // 状态栏
+		statusBar: widget.NewLabel("Zero: 你好 喵~"),
 		client:    client,
-		messages:  []string{"你好，这里是_042喵，需要我来做些什么吗？"},
 	}
 
 	// 绑定icon
@@ -111,20 +110,14 @@ func NewMainWindow(client *llm.Client) *MainWindow {
 
 	// centerContent := container.NewCenter(welcomeText)
 
-	// 创建消息列表显示历史对话
-	mainWindow.messageBox = widget.NewList(
-		// 列表长度
-		func() int {
-			return len(mainWindow.messages)
-		},
-		func() fyne.CanvasObject {
-			return widget.NewLabel("")
-		},
-		func(id widget.ListItemID, object fyne.CanvasObject) {
-			object.(*widget.Label).SetText(mainWindow.messages[id]) // 消息内容
-			object.(*widget.Label).Wrapping = fyne.TextWrapWord     //自动换行
-		},
-	)
+	// 创建消息容器
+	mainWindow.messageContainer = container.NewVBox() // V 表示从上往下排列）
+	mainWindow.scrollContainer = container.NewScroll(mainWindow.messageContainer)
+
+	// 添加欢迎消息
+	welcomeMsg := widget.NewRichTextFromMarkdown("**Zero**: 你好，这里是_042喵，需要我来做些什么吗？")
+	welcomeMsg.Wrapping = fyne.TextWrapWord
+	mainWindow.messageContainer.Add(welcomeMsg)
 
 	// 创建输入框
 	mainWindow.inputEntry = widget.NewMultiLineEntry()
@@ -153,7 +146,7 @@ func NewMainWindow(client *llm.Client) *MainWindow {
 			inputBox,
 			nil,
 			nil,
-			mainWindow.messageBox,
+			mainWindow.scrollContainer,
 		),
 	)
 
@@ -192,9 +185,11 @@ func (mw *MainWindow) onSend() {
 			return
 		}
 
-		// 添加对话到消息列表然后刷新
-		mw.messages = append(mw.messages, fmt.Sprintf("你：%s", userInput))
-		mw.messageBox.Refresh()
+		// 添加用户消息到容器
+		userMsg := widget.NewRichTextFromMarkdown(fmt.Sprintf("**你**: %s", userInput))
+		userMsg.Wrapping = fyne.TextWrapWord
+		mw.messageContainer.Add(userMsg)
+		mw.scrollContainer.ScrollToBottom()
 
 		// 然后清空输入栏
 		mw.inputEntry.SetText("")
@@ -210,10 +205,11 @@ func (mw *MainWindow) onSend() {
 
 		mw.statusBar.SetText("等待 Zero 思考结束")
 
-		aiMsgIdx := len(mw.messages)
-		mw.messages = append(mw.messages, "Zero: 正在思考...")
-		mw.messageBox.Refresh()
-		mw.messageBox.ScrollToBottom()
+		// 首先用aiMsg占位，等llm返回结果后再更新
+		aiMsg := widget.NewRichTextFromMarkdown("**Zero**: 正在思考...")
+		aiMsg.Wrapping = fyne.TextWrapWord
+		mw.messageContainer.Add(aiMsg)
+		mw.scrollContainer.ScrollToBottom()
 
 		// 调用 llm
 		go func() {
@@ -231,25 +227,26 @@ func (mw *MainWindow) onSend() {
 
 				// GUI框架强制要求ui操作需要用 .Do调度到主线程进行更新
 				fyne.Do(func() {
-					mw.messages[aiMsgIdx] = fmt.Sprintf("Zero💗：%s", fullResponse.String())
-					mw.messageBox.Refresh()
-					mw.messageBox.ScrollToBottom()
+					aiMsg.ParseMarkdown(fmt.Sprintf("**Zero💗**: %s", fullResponse.String()))
+					mw.scrollContainer.ScrollToBottom()
 				})
 				return nil
 			})
 			fyne.Do(func() {
 				if err != nil {
 					if errors.Is(err, context.Canceled) {
-						mw.statusBar.SetText(fmt.Sprintf(mw.messages[aiMsgIdx], " \nZero 被取消了喵~"))
+						// 取消时保留已生成的内容
+						aiMsg.ParseMarkdown(fmt.Sprintf("**Zero**: %s\n\n_(已取消)_", fullResponse.String()))
 						mw.statusBar.SetText("调用AI已取消")
 					} else {
-						mw.messages[aiMsgIdx] = fmt.Sprintf(mw.messages[aiMsgIdx], " \nZero出错啦：%v", err)
+						// 错误时保留已生成的内容并显示错误
+						aiMsg.ParseMarkdown(fmt.Sprintf("**Zero**: %s\n\n❌ **错误**: %v", fullResponse.String(), err))
 						mw.statusBar.SetText("调用AI失败")
 					}
 				} else {
 					mw.statusBar.SetText("Zero 思考完毕喵~")
 				}
-				mw.messageBox.Refresh()
+				mw.scrollContainer.ScrollToBottom()
 
 				// 将按钮改回为发送
 				mw.mu.Lock()
@@ -264,7 +261,15 @@ func (mw *MainWindow) onSend() {
 
 // newConversation 开启新对话
 func (mw *MainWindow) newConversation() {
-	mw.messages = []string{"新的对话开始喵~ 主人有什么问题要问 Zero吗~"}
-	mw.messageBox.Refresh()
+	// 清空容器
+	mw.messageContainer.Objects = []fyne.CanvasObject{}
+
+	// 添加欢迎消息
+	welcomeMsg := widget.NewRichTextFromMarkdown("**Zero**: 新的对话开始喵~ 主人有什么问题要问 Zero吗~")
+	welcomeMsg.Wrapping = fyne.TextWrapWord
+	mw.messageContainer.Add(welcomeMsg)
+
+	mw.messageContainer.Refresh()
+	mw.scrollContainer.ScrollToTop()
 	mw.statusBar.SetText("状态：准备就绪了喵~")
 }
